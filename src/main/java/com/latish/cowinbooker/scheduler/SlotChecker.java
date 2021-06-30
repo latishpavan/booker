@@ -31,6 +31,9 @@ public class SlotChecker {
 
     @Value("${district.id}")
     private int districtId;
+    private static final String BLOCK_NAME = "Vijayawada";
+
+    private int count = 0;
 
     private static final HttpHeaders headers = new HttpHeaders();
     private static final RestTemplate restTemplate = new RestTemplate();
@@ -41,11 +44,12 @@ public class SlotChecker {
         headers.add(HttpHeaders.ORIGIN, "https://selfregistration.cowin.gov.in/");
     }
 
-    @Scheduled(fixedDelay = 18_0_000)
+    @Scheduled(fixedDelayString = "${delay.ms}")
     public void checkForAvailableSlots() {
         final HttpEntity<HttpHeaders> entity = new HttpEntity<>(headers);
 
-        String tomorrow = LocalDate.now(ZoneId.of("Asia/Kolkata")).plusDays(1)
+        // once check for tomorrow, next time check for day after
+        String tomorrow = LocalDate.now(ZoneId.of("Asia/Kolkata")).plusDays((count++ & 1) == 0 ? 1: 2)
                 .format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
 
         log.info("Checking for slot availability for date {} for district id {}", tomorrow, districtId);
@@ -69,6 +73,7 @@ public class SlotChecker {
 
         if (results != null) {
             availableSlots = results.getCenters().stream()
+                    .filter(center -> center.getBlock_name().equals(BLOCK_NAME))
                     .filter(this::isSlotAvailable)
                     .collect(Collectors.toList());
 
@@ -84,6 +89,9 @@ public class SlotChecker {
 
     private boolean isSlotAvailable(SlotResult result) {
         return result.getSessions().stream()
-                .anyMatch(session -> session.getAvailable_capacity() > 0 && session.getMin_age_limit() >= 18);
+                .anyMatch(session ->
+                        session.getAvailable_capacity() > 0
+                        && session.getMin_age_limit() == 18
+                );
     }
 }
